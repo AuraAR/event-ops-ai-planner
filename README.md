@@ -23,4 +23,4 @@ Input:
 Outdoor 3-day music festival for 5,000 attendees
 
 Output:
-Structured operational breakdown including staffing, logistics, risk planning, and scheduling.
+Structured operational breakdown including staffing, logistics, risk planning, and scheduling.# event-ops-ai-planner
