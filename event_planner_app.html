@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPS.AI — Event Operations Planner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@300;400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #222222;
+    --accent: #e8ff3c;
+    --accent2: #ff4d4d;
+    --text: #f0f0f0;
+    --muted: #666;
+    --mono: 'Space Mono', monospace;
+    --display: 'Barlow Condensed', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--display);
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--accent);
+  }
+
+  .logo span { color: var(--text); }
+
+  .tagline {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .model-badge {
+    margin-left: auto;
+    background: #1a1a00;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    font-family: var(--mono);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px;
+  }
+
+  /* Input section */
+  .input-section {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0;
+    border: 1px solid var(--border);
+    margin-bottom: 40px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .input-label {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .input-label::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    display: block;
+  }
+
+  textarea {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 24px;
+    resize: none;
+    min-height: 120px;
+    width: 100%;
+  }
+
+  textarea::placeholder { color: #333; }
+
+  .generate-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    cursor: pointer;
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0 32px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transition: background 0.15s;
+    min-width: 60px;
+    border-left: 1px solid #000;
+  }
+
+  .generate-btn:hover { background: #fff; }
+  .generate-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    border: 1px solid var(--border);
+    border-top: none;
+    background: var(--surface);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: -1px;
+    margin-bottom: 40px;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+
+  .status-dot.active { background: var(--accent); animation: pulse 1s infinite; }
+  .status-dot.done { background: #4dff91; animation: none; }
+  .status-dot.error { background: var(--accent2); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .latency { margin-left: auto; font-family: var(--mono); }
+
+  /* Plan grid */
+  .plan-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .plan-grid.visible { opacity: 1; }
+
+  .plan-card {
+    background: var(--bg);
+    padding: 0;
+    overflow: hidden;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .plan-card:nth-child(1) { animation-delay: 0.05s; }
+  .plan-card:nth-child(2) { animation-delay: 0.1s; }
+  .plan-card:nth-child(3) { animation-delay: 0.15s; }
+  .plan-card:nth-child(4) { animation-delay: 0.2s; }
+  .plan-card:nth-child(5) { animation-delay: 0.25s; }
+  .plan-card:nth-child(6) { animation-delay: 0.3s; }
+
+  .card-header {
+    background: var(--surface);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-icon {
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+  }
+
+  .card-title {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .card-count {
+    margin-left: auto;
+    background: var(--border);
+    color: var(--muted);
+    font-size: 10px;
+    padding: 2px 6px;
+    font-family: var(--mono);
+  }
+
+  .card-body {
+    padding: 16px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .card-body::-webkit-scrollbar { width: 3px; }
+  .card-body::-webkit-scrollbar-track { background: transparent; }
+  .card-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+  /* Task items */
+  .task-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 8px 0;
+    border-bottom: 1px solid #161616;
+  }
+
+  .task-item:last-child { border-bottom: none; }
+
+  .priority-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+
+  .priority-dot.high { background: var(--accent2); }
+  .priority-dot.medium { background: var(--accent); }
+  .priority-dot.low { background: #4dff91; }
+
+  .task-text { font-size: 12px; line-height: 1.5; color: #ccc; }
+  .task-owner { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .task-due {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+
+  /* Staff items */
+  .staff-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #161616;
+  }
+
+  .staff-item:last-child { border-bottom: none; }
+
+  .staff-role {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  .staff-count {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .staff-resp {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #888;
+    line-height: 1.5;
+  }
+
+  /* Risk items */
+  .risk-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #161616;
+  }
+
+  .risk-item:last-child { border-bottom: none; }
+
+  .risk-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .risk-badge {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    font-family: var(--mono);
+  }
+
+  .risk-badge.high { background: #2a0000; color: var(--accent2); border: 1px solid #4a0000; }
+  .risk-badge.medium { background: #1a1a00; color: var(--accent); border: 1px solid #3a3a00; }
+  .risk-badge.low { background: #001a00; color: #4dff91; border: 1px solid #003a00; }
+
+  .risk-text { font-size: 12px; color: #ccc; }
+  .risk-mitigation { font-size: 11px; color: #666; margin-top: 3px; line-height: 1.4; }
+
+  /* Timeline */
+  .timeline-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #161616;
+    position: relative;
+  }
+
+  .timeline-item:last-child { border-bottom: none; }
+
+  .timeline-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .timeline-node {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .timeline-phase {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.05em;
+  }
+
+  .timeline-time {
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .timeline-milestones {
+    font-size: 11px;
+    color: #777;
+    line-height: 1.6;
+  }
+
+  /* Equipment */
+  .equip-category {
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+    margin-top: 10px;
+  }
+
+  .equip-category:first-child { margin-top: 0; }
+
+  .equip-items {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.8;
+  }
+
+  .equip-vendor {
+    font-size: 10px;
+    color: #555;
+    font-style: italic;
+    margin-top: 2px;
+    margin-bottom: 8px;
+  }
+
+  /* Budget */
+  .budget-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #161616;
+  }
+
+  .budget-item:last-child { border-bottom: none; }
+
+  .budget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .budget-cat {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .budget-pct {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .budget-bar {
+    height: 2px;
+    background: var(--border);
+    margin-bottom: 4px;
+  }
+
+  .budget-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 1s ease;
+  }
+
+  .budget-notes { font-size: 11px; color: #666; line-height: 1.4; }
+
+  /* Event summary banner */
+  .event-banner {
+    border: 1px solid var(--accent);
+    background: #0f0f00;
+    padding: 20px 24px;
+    margin-bottom: 1px;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .event-name {
+    font-family: var(--display);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .event-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .meta-item strong {
+    display: block;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: #333;
+  }
+
+  .empty-state .big-text {
+    font-family: var(--display);
+    font-size: 80px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+    color: #1a1a1a;
+  }
+
+  .empty-state p {
+    margin-top: 16px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Thinking animation */
+  .thinking {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .thinking-bars {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 14px;
+  }
+
+  .thinking-bars span {
+    width: 3px;
+    background: var(--accent);
+    border-radius: 1px;
+    animation: bar 1s ease infinite;
+  }
+
+  .thinking-bars span:nth-child(2) { animation-delay: 0.15s; }
+  .thinking-bars span:nth-child(3) { animation-delay: 0.3s; }
+  .thinking-bars span:nth-child(4) { animation-delay: 0.45s; }
+
+  @keyframes bar {
+    0%, 100% { height: 4px; }
+    50% { height: 14px; }
+  }
+
+  /* Refine button */
+  .refine-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    cursor: pointer;
+    margin-left: auto;
+    transition: all 0.15s;
+  }
+
+  .refine-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Refine modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    width: 500px;
+    max-width: 90vw;
+    transform: translateY(20px);
+    transition: transform 0.2s;
+  }
+
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-title {
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .modal-body { padding: 20px; }
+
+  .modal-body textarea {
+    width: 100%;
+    min-height: 100px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 12px;
+    resize: none;
+    outline: none;
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .btn-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 8px 16px;
+    cursor: pointer;
+  }
+
+  .btn-refine {
+    background: var(--accent);
+    border: none;
+    color: #000;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 8px 20px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .btn-refine:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+  /* Export button */
+  .export-bar {
+    margin-top: 1px;
+    border: 1px solid var(--border);
+    border-top: none;
+    padding: 12px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: var(--surface);
+  }
+
+  .export-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .export-btn:hover { border-color: var(--text); color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">OPS<span>.</span>AI</div>
+  <div class="tagline">Event Operations Intelligence</div>
+  <div class="model-badge">⚡ Powered by Grok-3</div>
+</header>
+
+<div class="container">
+
+  <div class="input-section">
+    <div class="input-label">Event Description</div>
+    <textarea id="eventInput" placeholder="Describe your event in detail — type, scale, location, dates, expected attendance, special requirements...
+
+Example: 3-day electronic music festival in Austin TX, August 2025. 15,000 attendees per day, 4 stages, 60 artists, camping on-site, VIP section, full catering, merchandise vendors." rows="5"></textarea>
+    <button class="generate-btn" id="generateBtn" onclick="generatePlan()">Generate Plan</button>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Ready — describe your event above</span>
+    <span class="latency" id="latencyText"></span>
+  </div>
+
+  <div id="emptyState" class="empty-state">
+    <div class="big-text">OPS</div>
+    <p>Enter your event details to generate a full operations plan</p>
+  </div>
+
+  <div id="planContainer" style="display:none;">
+    <div class="plan-grid" id="planGrid"></div>
+    <div class="export-bar" id="exportBar">
+      <span style="font-size:11px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;">Export</span>
+      <button class="export-btn" onclick="exportJSON()">JSON</button>
+      <button class="export-btn" onclick="exportMarkdown()">Markdown</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Refine Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Refine Section</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <textarea id="refineFeedback" placeholder="Describe what you'd like to change or add..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-refine" id="refineSubmitBtn" onclick="submitRefine()">Refine with Grok</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPlan = null;
+let refineSection = null;
+
+const SYSTEM_PROMPT = `You are an expert event operations planner with deep experience in large-scale events including music festivals, corporate conferences, and sporting events.
+You coordinate complex logistics across vendors, staff, equipment, and timelines.
+Always respond with valid JSON only — no markdown fences, no extra text.`;
+
+const PLAN_SCHEMA = `{
+  "event_summary": { "name": "string", "type": "string", "estimated_attendance": "string", "key_dates": ["string"] },
+  "task_checklist": [{ "category": "string", "task": "string", "owner": "string", "due": "string", "priority": "high|medium|low" }],
+  "staffing_requirements": [{ "role": "string", "headcount": 0, "responsibilities": ["string"], "notes": "string" }],
+  "equipment_list": [{ "category": "string", "items": ["string"], "vendor_notes": "string" }],
+  "risk_management": [{ "risk": "string", "likelihood": "high|medium|low", "impact": "high|medium|low", "mitigation": "string" }],
+  "timeline_overview": [{ "phase": "string", "timeframe": "string", "milestones": ["string"] }],
+  "budget_considerations": [{ "category": "string", "notes": "string", "rough_percentage": "string" }]
+}`;
+
+function setStatus(state, text, latency) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('latencyText').textContent = latency || '';
+}
+
+async function callGrok(messages) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      system: SYSTEM_PROMPT,
+      messages
+    })
+  });
+  const data = await res.json();
+  const text = data.content.map(b => b.text || '').join('');
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+async function generatePlan() {
+  const input = document.getElementById('eventInput').value.trim();
+  if (!input) return;
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  setStatus('active', 'Grok is generating your operations plan...');
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('planContainer').style.display = 'none';
+
+  const start = Date.now();
+  try {
+    const plan = await callGrok([{
+      role: 'user',
+      content: `Create a comprehensive event operations plan for:\n\n${input}\n\nReturn JSON matching this schema:\n${PLAN_SCHEMA}\n\nBe specific and tailor every detail to this exact event.`
+    }]);
+
+    const latency = ((Date.now() - start) / 1000).toFixed(2);
+    currentPlan = plan;
+    renderPlan(plan);
+    setStatus('done', 'Plan generated successfully', `${latency}s`);
+  } catch (e) {
+    setStatus('error', 'Error: ' + e.message);
+    document.getElementById('emptyState').style.display = 'block';
+  }
+
+  btn.disabled = false;
+}
+
+function renderPlan(plan) {
+  const grid = document.getElementById('planGrid');
+  grid.innerHTML = '';
+
+  // Event summary banner
+  const summary = plan.event_summary || {};
+  const banner = document.createElement('div');
+  banner.className = 'event-banner';
+  banner.innerHTML = `
+    <div>
+      <div class="event-name">${summary.name || 'Event Plan'}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.1em;text-transform:uppercase;">${summary.type || ''}</div>
+    </div>
+    <div class="event-meta">
+      <div class="meta-item"><strong>${summary.estimated_attendance || '—'}</strong>Est. Attendance</div>
+      ${(summary.key_dates || []).map(d => `<div class="meta-item"><strong>${d}</strong></div>`).join('')}
+    </div>
+  `;
+  grid.appendChild(banner);
+
+  const cards = [
+    { key: 'task_checklist', icon: '☑', title: 'Task Checklist', render: renderTasks },
+    { key: 'staffing_requirements', icon: '👥', title: 'Staffing', render: renderStaff },
+    { key: 'equipment_list', icon: '🔧', title: 'Equipment', render: renderEquipment },
+    { key: 'risk_management', icon: '⚠', title: 'Risk Management', render: renderRisks },
+    { key: 'timeline_overview', icon: '📅', title: 'Timeline', render: renderTimeline },
+    { key: 'budget_considerations', icon: '$', title: 'Budget', render: renderBudget },
+  ];
+
+  cards.forEach(({ key, icon, title, render }) => {
+    const data = plan[key] || [];
+    const card = document.createElement('div');
+    card.className = 'plan-card';
+    card.innerHTML = `
+      <div class="card-header">
+        <span class="card-icon">${icon}</span>
+        <span class="card-title">${title}</span>
+        <span class="card-count">${data.length}</span>
+        <button class="refine-btn" onclick="openRefine('${key}', '${title}')">Refine</button>
+      </div>
+      <div class="card-body" id="card-${key}">${render(data)}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.classList.add('visible');
+  document.getElementById('planContainer').style.display = 'block';
+}
+
+function renderTasks(items) {
+  return items.map(t => `
+    <div class="task-item">
+      <div class="priority-dot ${t.priority || 'medium'}"></div>
+      <div>
+        <div class="task-text">${t.task}</div>
+        <div class="task-owner">${t.category} — ${t.owner || ''}</div>
+      </div>
+      <div class="task-due">${t.due || ''}</div>
+    </div>`).join('');
+}
+
+function renderStaff(items) {
+  return items.map(s => `
+    <div class="staff-item">
+      <div><span class="staff-role">${s.role}</span><span class="staff-count">×${s.headcount}</span></div>
+      <div class="staff-resp">${(s.responsibilities || []).slice(0,3).join(' · ')}</div>
+    </div>`).join('');
+}
+
+function renderEquipment(items) {
+  return items.map(e => `
+    <div class="equip-category">${e.category}</div>
+    <div class="equip-items">${(e.items || []).join(', ')}</div>
+    ${e.vendor_notes ? `<div class="equip-vendor">${e.vendor_notes}</div>` : ''}
+  `).join('');
+}
+
+function renderRisks(items) {
+  return items.map(r => `
+    <div class="risk-item">
+      <div class="risk-header">
+        <span class="risk-badge ${r.likelihood}">${r.likelihood}</span>
+        <span class="risk-text">${r.risk}</span>
+      </div>
+      <div class="risk-mitigation">↳ ${r.mitigation}</div>
+    </div>`).join('');
+}
+
+function renderTimeline(items) {
+  return items.map(t => `
+    <div class="timeline-item">
+      <div class="timeline-line"><div class="timeline-node"></div></div>
+      <div>
+        <div class="timeline-phase">${t.phase}</div>
+        <div class="timeline-time">${t.timeframe}</div>
+        <div class="timeline-milestones">${(t.milestones || []).join(' · ')}</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderBudget(items) {
+  return items.map(b => {
+    const pct = parseFloat(b.rough_percentage) || 0;
+    return `
+      <div class="budget-item">
+        <div class="budget-header">
+          <span class="budget-cat">${b.category}</span>
+          <span class="budget-pct">${b.rough_percentage}</span>
+        </div>
+        <div class="budget-bar"><div class="budget-bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
+        <div class="budget-notes">${b.notes}</div>
+      </div>`;
+  }).join('');
+}
+
+function openRefine(section, title) {
+  refineSection = section;
+  document.getElementById('modalTitle').textContent = `Refine: ${title}`;
+  document.getElementById('refineFeedback').value = '';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  refineSection = null;
+}
+
+async function submitRefine() {
+  const feedback = document.getElementById('refineFeedback').value.trim();
+  if (!feedback || !refineSection || !currentPlan) return;
+
+  const btn = document.getElementById('refineSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Refining...';
+
+  try {
+    const updated = await callGrok([{
+      role: 'user',
+      content: `Here is the current '${refineSection}' section:\n\n${JSON.stringify(currentPlan[refineSection], null, 2)}\n\nUser feedback: ${feedback}\n\nReturn ONLY the updated '${refineSection}' array/object as valid JSON. Same structure, improved content.`
+    }]);
+
+    // Handle wrapped or unwrapped response
+    let newData = updated[refineSection] || updated;
+    currentPlan[refineSection] = newData;
+
+    const renders = {
+      task_checklist: renderTasks,
+      staffing_requirements: renderStaff,
+      equipment_list: renderEquipment,
+      risk_management: renderRisks,
+      timeline_overview: renderTimeline,
+      budget_considerations: renderBudget
+    };
+
+    const cardBody = document.getElementById(`card-${refineSection}`);
+    if (cardBody && renders[refineSection]) {
+      cardBody.style.opacity = '0';
+      setTimeout(() => {
+        cardBody.innerHTML = renders[refineSection](newData);
+        cardBody.style.opacity = '1';
+        cardBody.style.transition = 'opacity 0.3s';
+      }, 200);
+    }
+
+    closeModal();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Refine with Grok';
+}
+
+function exportJSON() {
+  if (!currentPlan) return;
+  const blob = new Blob([JSON.stringify(currentPlan, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `event_plan_${Date.now()}.json`;
+  a.click();
+}
+
+function exportMarkdown() {
+  if (!currentPlan) return;
+  const s = currentPlan.event_summary || {};
+  let md = `# ${s.name || 'Event Plan'}\n\n`;
+  md += `**Type:** ${s.type} | **Attendance:** ${s.estimated_attendance}\n\n`;
+
+  const sections = [
+    ['## Task Checklist', 'task_checklist', t => `- [${t.priority?.toUpperCase()}] **${t.task}** — ${t.owner} (${t.due})`],
+    ['## Staffing Requirements', 'staffing_requirements', s => `- **${s.role}** ×${s.headcount}: ${(s.responsibilities||[]).join(', ')}`],
+    ['## Equipment List', 'equipment_list', e => `- **${e.category}**: ${(e.items||[]).join(', ')}`],
+    ['## Risk Management', 'risk_management', r => `- [${r.likelihood}/${r.impact}] **${r.risk}** → ${r.mitigation}`],
+    ['## Timeline', 'timeline_overview', t => `- **${t.phase}** (${t.timeframe}): ${(t.milestones||[]).join(', ')}`],
+    ['## Budget', 'budget_considerations', b => `- **${b.category}** (${b.rough_percentage}): ${b.notes}`],
+  ];
+
+  sections.forEach(([heading, key, fmt]) => {
+    if (currentPlan[key]?.length) {
+      md += `${heading}\n\n`;
+      md += currentPlan[key].map(fmt).join('\n');
+      md += '\n\n';
+    }
+  });
+
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `event_plan_${Date.now()}.md`;
+  a.click();
+}
+
+// Enter to submit
+document.getElementById('eventInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) generatePlan();
+});
+</script>
+
+</body>
+</html>
