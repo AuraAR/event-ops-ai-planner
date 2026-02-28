@@ -22,5 +22,11 @@ Built to experiment with LLM-powered workflow automation and structured planning
 Input:
 Outdoor 3-day music festival for 5,000 attendees
 
+## Engineering Improvements
+- Structured JSON output generation
+- Response latency tracking
+- Timestamped output logging
+- Modular function-based architecture
+
 Output:
 Structured operational breakdown including staffing, logistics, risk planning, and scheduling.# event-ops-ai-planner
